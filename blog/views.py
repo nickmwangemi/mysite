@@ -1,12 +1,34 @@
-from django.db.models import Count
-from django.shortcuts import render, get_object_or_404
-from django.core.paginator import Paginator, EmptyPage,\
-                                  PageNotAnInteger
+from django.contrib.postgres import search
+from django.contrib.postgres.search import SearchVector
 from django.core.mail import send_mail
+from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
+from django.db.models import Count, query
+from django.shortcuts import get_object_or_404, render
 from django.views.generic import ListView
-from .models import Post, Comment
-from .forms import EmailPostForm, CommentForm
 from taggit.models import Tag
+
+from .forms import CommentForm, EmailPostForm, SearchForm
+from .models import Comment, Post
+
+
+def post_search(request):
+    form = SearchForm()
+    query = None
+    results = []
+    if 'query' in request.GET:
+        form = SearchForm(request.GET)
+        if form.is_valid():
+            query = form.cleaned_data['query']
+            results = Post.published.annotate(
+                search=SearchVector('title', 'body'),
+            ).filter(search=query)
+
+    context = {
+        'form': form,
+        'query': query,
+        'results': results
+    }
+    return render(request, 'blog/post/search.html', context)
 
 
 def post_list(request, tag_slug=None):
